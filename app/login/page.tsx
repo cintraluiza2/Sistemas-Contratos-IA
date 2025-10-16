@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { signIn } from "next-auth/react";
 import LogoRounded from "@/app/src/logoRounded.svg"
 import Image from "next/image"
 
@@ -18,26 +19,29 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const { login } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError("")
-    setLoading(true)
+    e.preventDefault();
+    setError("");
 
     try {
-      const success = await login(email, password)
-      if (success) {
-        router.push("/dashboard")
+      const result = await signIn("credentials", {
+        redirect: false, // Importante: não redireciona a página inteira
+        email,
+        password,
+      });
+
+      if (result?.error) {
+        setError("Email ou senha inválidos.");
+        console.error(result.error);
       } else {
-        setError("Credenciais inválidas")
+        // Sucesso! Redireciona para o dashboard
+        router.push("/dashboard");
       }
     } catch (err) {
-      setError("Erro ao fazer login")
-    } finally {
-      setLoading(false)
+      setError("Ocorreu um erro ao tentar fazer login.");
     }
-  }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">

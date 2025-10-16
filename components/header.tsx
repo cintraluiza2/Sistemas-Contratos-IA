@@ -1,6 +1,6 @@
 "use client"
 
-import { useAuth } from "@/lib/auth"
+import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button"
 import { LogOut } from "lucide-react"
 import Logo from "@/app/src/logo.svg"
@@ -8,7 +8,7 @@ import Image from "next/image"
 import Link from "next/link"
 
 export function Header() {
-  const { user, logout } = useAuth()
+  const { data: session, status } = useSession();
 
   return (
     <header className="sticky top-0 z-50 w-full bg-header px-8 ">
@@ -16,14 +16,13 @@ export function Header() {
         <div className="flex items-center gap-2">
           <Link href={'/dashboard'}><Image className="w-32" src={Logo} alt="headerLogo" /></Link>
         </div>
-
-        {user && (
+        {status === "authenticated" && (
           <div className="flex items-center gap-4">
-            <span className="text-sm text-white">{user.name}</span>
+            <span className="text-sm text-white">{session.user?.email}</span>
             <Button
               variant="ghost"
               size="icon"
-              onClick={logout}
+              onClick={() => signOut({ callbackUrl: '/login' })}
               className="text-white hover:bg-white/10 hover:text-accent"
             >
               <LogOut className="h-5 w-5" />

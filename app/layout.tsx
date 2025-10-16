@@ -5,6 +5,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/app/contexts/themeContext';
 import { Suspense } from "react"
 import { ThemeToggleButton } from "@/components/themeToggleButton"
+import AuthProvider from "@/components/authProvider";
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -20,13 +21,15 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        <Suspense fallback={<div>Loading...</div>}>
-          <ThemeProvider>
-            {children}
-            <ThemeToggleButton />
-            <Analytics />
-          </ThemeProvider>
-        </Suspense>
+        <AuthProvider>
+          <Suspense fallback={<div>Loading...</div>}>
+            <ThemeProvider>
+              {children}
+              <ThemeToggleButton />
+              <Analytics />
+            </ThemeProvider>
+          </Suspense>
+        </AuthProvider>
       </body>
     </html>
   )
