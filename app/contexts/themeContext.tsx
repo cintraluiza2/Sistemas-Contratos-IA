@@ -18,7 +18,7 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider = ({ children }: ThemeProviderProps) => {
-  const [theme, setTheme] = useState<Theme>('light'); // Padrão é light
+  const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
     // Acessamos o localStorage apenas no lado do cliente
