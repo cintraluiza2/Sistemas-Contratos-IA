@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
+import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,18 +10,12 @@ import { Building2, Users } from "lucide-react"
 export default function DashboardPage() {
   const router = useRouter()
 
-  useEffect(() => {
-    const authStorageString = localStorage.getItem("auth-storage");
-
-    if (authStorageString || authStorageString !== null)
-      var authDataObject = JSON.parse(authStorageString);
-
-    const isUserAuthenticated = authDataObject.state.isAuthenticated;
-
-    if (!isUserAuthenticated) {
-      router.push("/login")
-    }
-  }, [router])
+  const { data: session, status } = useSession({
+    required: true, // Magia! Se não estiver logado, redireciona para a página de login
+    onUnauthenticated() {
+      router.push("/login");
+    },
+  });
 
   const categories = [
     {

@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, Suspense } from "react"
+import { Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useAuth } from "@/lib/auth"
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Download, CheckCircle2, FileText, Home } from "lucide-react"
 import { generateContract } from "@/lib/document-generator"
+import { useSession } from "next-auth/react"
 
 
 function ResultadoContent() {
@@ -15,18 +15,12 @@ function ResultadoContent() {
   const searchParams = useSearchParams()
   const tipo = searchParams.get("tipo") || "contrato"
 
-  useEffect(() => {
-    const authStorageString = localStorage.getItem("auth-storage");
-
-    if (authStorageString || authStorageString !== null)
-      var authDataObject = JSON.parse(authStorageString);
-
-    const isUserAuthenticated = authDataObject.state.isAuthenticated;
-
-    if (!isUserAuthenticated) {
-      router.push("/login")
-    }
-  }, [router])
+  const { data: session, status } = useSession({
+    required: true, // Magia! Se não estiver logado, redireciona para a página de login
+    onUnauthenticated() {
+      router.push("/login");
+    },
+  });
 
   const handleDownloadContract = () => {
     const base64 = localStorage.getItem("contratoGerado");

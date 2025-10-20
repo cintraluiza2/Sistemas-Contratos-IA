@@ -7,23 +7,18 @@ import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
 import { DocumentUpload } from "@/components/document-upload"
 import { ArrowLeft } from "lucide-react"
+import { useSession } from "next-auth/react"
 
 export default function CompraVendaVistaPage() {
   const router = useRouter()
   const [isProcessing, setIsProcessing] = useState(false)
 
-  useEffect(() => {
-    const authStorageString = localStorage.getItem("auth-storage");
-
-    if (authStorageString || authStorageString !== null)
-      var authDataObject = JSON.parse(authStorageString);
-
-    const isUserAuthenticated = authDataObject.state.isAuthenticated;
-
-    if (!isUserAuthenticated) {
-      router.push("/login")
-    }
-  }, [router])
+  const { data: session, status } = useSession({
+    required: true, // Magia! Se não estiver logado, redireciona para a página de login
+    onUnauthenticated() {
+      router.push("/login");
+    },
+  });
 
 
   const handleGenerateLegalOpinion = async (files: File[]) => {

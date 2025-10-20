@@ -1,28 +1,32 @@
-"use client"
+"use client";
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth"
+import { useEffect } from "react"; // 1. Importe o useEffect
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 export default function HomePage() {
-  const router = useRouter()
+  const router = useRouter();
+  const { status } = useSession({
+    onUnauthenticated() {
+      router.push("/login");
+    },
+    required: true
+  });
 
   useEffect(() => {
-    const authStorageString = localStorage.getItem("auth-storage");
-
-    if (authStorageString || authStorageString !== null)
-      var authDataObject = JSON.parse(authStorageString);
-
-    const isUserAuthenticated = authDataObject.state.isAuthenticated;
-
-    if (!isUserAuthenticated) {
-      router.push("/login")
+    if (status === "authenticated") {
+      router.push("/dashboard");
     }
-  }, [router])
+  }, [status, router]);
 
-  return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent border-t-transparent" />
-    </div>
-  )
+  if (status === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent border-t-transparent" />
+      </div>
+    );
+  }
+
+  // Retorna nulo para evitar qualquer "flash" de conteúdo antes do redirecionamento
+  return null;
 }

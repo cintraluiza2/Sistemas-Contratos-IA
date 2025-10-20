@@ -1,26 +1,20 @@
 "use client"
 
-import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
+import { useSession } from "next-auth/react"
 
 export default function PublicoPrivadoPage() {
   const router = useRouter()
 
-  useEffect(() => {
-    const authStorageString = localStorage.getItem("auth-storage");
-
-    if (authStorageString || authStorageString !== null)
-      var authDataObject = JSON.parse(authStorageString);
-
-    const isUserAuthenticated = authDataObject.state.isAuthenticated;
-
-    if (!isUserAuthenticated) {
-      router.push("/login")
-    }
-  }, [router])
+  const { data: session, status } = useSession({
+    required: true, // Magia! Se não estiver logado, redireciona para a página de login
+    onUnauthenticated() {
+      router.push("/login");
+    },
+  });
 
   return (
     <div className="min-h-screen bg-background">
