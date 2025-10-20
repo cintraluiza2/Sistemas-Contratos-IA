@@ -23,7 +23,7 @@ export function Header() {
               variant="ghost"
               size="icon"
               onClick={() => signOut({ callbackUrl: '/login' })}
-              className="text-white hover:bg-white/10 hover:text-accent"
+              className="text-white hover:bg-white/10 hover:text-primary"
             >
               <LogOut className="h-5 w-5" />
             </Button>
