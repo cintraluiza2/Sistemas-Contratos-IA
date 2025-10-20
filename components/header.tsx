@@ -18,7 +18,7 @@ export function Header() {
         </div>
         {status === "authenticated" && (
           <div className="flex items-center gap-4">
-            <span className="text-sm text-white">{session.user?.email}</span>
+            <span className="text-sm text-white">{session.user?.name}</span>
             <Button
               variant="ghost"
               size="icon"
