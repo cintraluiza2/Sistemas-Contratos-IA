@@ -14,6 +14,8 @@ from pathlib import Path
 from docxtpl import DocxTemplate
 from ocr_service.ocr_core import clean_markdown  # adicione no topo
 import re
+import json
+
 
 # ---------- Configuração ----------
 app = Flask(__name__)
@@ -41,6 +43,17 @@ def generate_contract():
         uploaded_file = request.files.get("pre_contrato")
         tipo_contrato = request.form.get("tipo_contrato", "compra-venda").strip()
 
+        # 🔹 lê os parágrafos enviados pelo front
+        paragrafos_raw = request.form.get("selectedParagraphs", "[]")
+        print(f"🧾 Raw recebido: {paragrafos_raw}")
+
+        try:
+            paragrafos = json.loads(paragrafos_raw)
+            print(f"📋 Parágrafos parseados: {paragrafos}")
+        except Exception as e:
+            print(f"❌ Erro ao parsear JSON: {e}")
+            paragrafos = []
+
         if not uploaded_file:
             return jsonify({"error": "Nenhum arquivo .docx recebido"}), 400
 
@@ -52,11 +65,13 @@ def generate_contract():
         # 🔹 Gera saída temporária
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".docx").name
 
-        print(f"📄 Arquivo recebido: {uploaded_file.filename}")
-        print(f"📦 Tipo de contrato: {tipo_contrato}")
+        print(f" Arquivo recebido: {uploaded_file.filename}")
+        print(f" Tipo de contrato: {tipo_contrato}")
+        print(" Requisição iniciada em /generate")
 
-        # 🔹 Gera o contrato final
-        gerar_conteudo(pre_path, tipo_contrato, output_path)
+
+        # 🔹 Chama a função geradora passando os parágrafos do front
+        gerar_conteudo(pre_path, tipo_contrato, output_path, paragrafos_extra=paragrafos)
 
         print(f"✅ Contrato gerado em: {output_path}")
         return send_file(output_path, as_attachment=True, download_name=f"contrato_{tipo_contrato}.docx")
@@ -65,6 +80,7 @@ def generate_contract():
         print("❌ ERRO AO GERAR CONTRATO:")
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
 
 # ---------- GERA PARECER ----------
 @app.route("/parecer", methods=["POST"])
