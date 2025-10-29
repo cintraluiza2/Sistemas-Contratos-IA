@@ -65,10 +65,12 @@ export default function CompraVendaVistaPage() {
 
     setIsProcessing(true);
 
+    console.log("Enviando requisição única ao Flask!")
     try {
       // 🧩 1️⃣ Gera o contrato
       const formData = new FormData();
       formData.append("pre_contrato", preContrato);
+      formData.append("selectedParagraphs", JSON.stringify(selectedParagraphs))
 
       const response = await fetch("https://4eb693410904.ngrok-free.app/generate", {
         method: "POST",

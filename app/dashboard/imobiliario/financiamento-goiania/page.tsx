@@ -69,9 +69,10 @@ export default function CompraVendaVistaPage() {
       // 🧩 1️⃣ Gera o contrato — agora com tipo de contrato
       const formData = new FormData();
       formData.append("pre_contrato", preContrato);
+      formData.append("selectedParagraphs", JSON.stringify(selectedParagraphs))
       formData.append("tipo_contrato", "financiamento-go"); // <- muda aqui
 
-      const response = await fetch("http://localhost:5000/generate", {
+      const response = await fetch("https://4eb693410904.ngrok-free.app/generate", {
         method: "POST",
         body: formData,
       });

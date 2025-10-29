@@ -124,37 +124,6 @@ export function DocumentUpload({ title, onProcess }: DocumentUploadProps) {
     setIsDragging(true)
   }, [])
 
-console.log("Enviando requisição única ao Flask!")
-async function handleGenerateContract(files: File[], selectedParagraphs: string[]) {
-  console.log(" Enviando parágrafos:", selectedParagraphs)
-
-  //  Chama onProcess primeiro — muda de página imediatamente
-  onProcess(files, selectedParagraphs)
-
-  //  Depois envia o contrato ao backend em background
-  const formData = new FormData()
-  formData.append("pre_contrato", files[0])
-  formData.append("selectedParagraphs", JSON.stringify(selectedParagraphs))
-
-  fetch("http://localhost:8000/generate", {
-    method: "POST",
-    body: formData,
-  })
-    .then(async (response) => {
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error("❌ Erro no backend:", errorText)
-      } else {
-        console.log("✅ Contrato gerado com sucesso!")
-      }
-    })
-    .catch((error) => {
-      console.error("❌ Erro ao gerar contrato:", error)
-    })
-}
-
-
-
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
@@ -192,13 +161,10 @@ async function handleGenerateContract(files: File[], selectedParagraphs: string[
         selectedParagraphs.includes(option.id)
       );
       const paragraphsAsText: string[] = selectedOptions.map((option: ClauseOption) => option.text);
-      console.log(" Teste:", paragraphsAsText)
-      handleGenerateContract(files, paragraphsAsText);
+      onProcess(files, paragraphsAsText);
     } else
       alert("AAAAA")
   }
-
-
 
   const getFileIcon = (fileName: string) => {
     if (/\.(jpe?g|png)$/i.test(fileName)) return ImageIcon
