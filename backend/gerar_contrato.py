@@ -178,8 +178,13 @@ def add_tabelas_geradas(doc: Document, texto: str):
 
 
 # -------- 6️⃣ Gera conteúdo formatado --------
-def gerar_conteudo(pre_contrato_path, tipo_contrato, saida_path):
+def gerar_conteudo(pre_contrato_path, tipo_contrato, saida_path, paragrafos_extra=None):
     print(f"🔹 Gerando contrato do tipo: {tipo_contrato}")
+    
+    if paragrafos_extra is None:
+        paragrafos_extra = []
+    else:
+        print(f" Parágrafos recebidos: {paragrafos_extra}")
 
     BASE_DIR = Path(__file__).resolve().parent
 
@@ -334,7 +339,28 @@ INFORMAÇÕES EXTRAÍDAS:
     if assinaturas:
         modelo.add_paragraph("")
         add_paragrafos(modelo, assinaturas)
+        
+    texto_paragrafos = ""
+    if paragrafos_extra:
+        for p in paragrafos_extra:
+            texto_paragrafos += f"\n\n{p}"
+    else:
+        print(" Nenhum parágrafo adicional recebido.")
+    
+    # ---------- Inserir parágrafos adicionais selecionados no front ----------
+    if paragrafos_extra:
+        modelo.add_page_break()
+        modelo.add_paragraph("CLÁUSULAS ADICIONAIS", style="Normal").runs[0].bold = True
+        modelo.add_paragraph("")  
 
+        for i, texto_extra in enumerate(paragrafos_extra, start=1):
+            modelo.add_paragraph(f"{i}. {texto_extra}", style="Normal")
+            modelo.add_paragraph("")  # espaço entre parágrafos
+        print(f" {len(paragrafos_extra)} parágrafos adicionais inseridos no contrato.")
+    else:
+        print(" Nenhum parágrafo adicional recebido para inserção.")
+
+    
     modelo.save(saida_path)
     print(f"✅ Contrato final salvo com layout preservado, fonte 12 e quadro de pagamento detalhado em: {saida_path}")
 
