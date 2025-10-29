@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Upload, X, FileText, ImageIcon, File } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+
+
 type ClauseOption = { id: string; label: string; text: string }
 
 interface DocumentUploadProps {
@@ -122,6 +124,37 @@ export function DocumentUpload({ title, onProcess }: DocumentUploadProps) {
     setIsDragging(true)
   }, [])
 
+console.log("Enviando requisição única ao Flask!")
+async function handleGenerateContract(files: File[], selectedParagraphs: string[]) {
+  console.log(" Enviando parágrafos:", selectedParagraphs)
+
+  //  Chama onProcess primeiro — muda de página imediatamente
+  onProcess(files, selectedParagraphs)
+
+  //  Depois envia o contrato ao backend em background
+  const formData = new FormData()
+  formData.append("pre_contrato", files[0])
+  formData.append("selectedParagraphs", JSON.stringify(selectedParagraphs))
+
+  fetch("http://localhost:8000/generate", {
+    method: "POST",
+    body: formData,
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("❌ Erro no backend:", errorText)
+      } else {
+        console.log("✅ Contrato gerado com sucesso!")
+      }
+    })
+    .catch((error) => {
+      console.error("❌ Erro ao gerar contrato:", error)
+    })
+}
+
+
+
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
@@ -154,10 +187,18 @@ export function DocumentUpload({ title, onProcess }: DocumentUploadProps) {
   }
 
   const handleProcess = () => {
-    if (files.length > 0 && selectedParagraphs.length > 0) {
-      onProcess(files, selectedParagraphs)
-    }
+    if (files.length > 0) {
+      const selectedOptions: ClauseOption[] = displayedParagraphOptions.filter((option: ClauseOption) =>
+        selectedParagraphs.includes(option.id)
+      );
+      const paragraphsAsText: string[] = selectedOptions.map((option: ClauseOption) => option.text);
+      console.log(" Teste:", paragraphsAsText)
+      handleGenerateContract(files, paragraphsAsText);
+    } else
+      alert("AAAAA")
   }
+
+
 
   const getFileIcon = (fileName: string) => {
     if (/\.(jpe?g|png)$/i.test(fileName)) return ImageIcon
@@ -240,7 +281,7 @@ export function DocumentUpload({ title, onProcess }: DocumentUploadProps) {
         <CardContent>
           <div className="flex flex-col gap-4">
             {displayedParagraphOptions.map((paragraph: any) => (
-              <div key={paragraph.id} className="flex space-x-3 border rounded-md p-3 cursor-pointer" onClick={() => toggleParagraph(paragraph.id)}>
+              <div key={paragraph.id} className="flex space-x-3 border rounded-md p-3 cursor-pointer">
                 <Checkbox
                   className="mt-1"
                   id={paragraph.id}
