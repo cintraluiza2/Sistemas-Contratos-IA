@@ -3,10 +3,11 @@ from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import parse_xml
 from docx.oxml.ns import nsdecls
+from docx.enum.style import WD_STYLE_TYPE
 import json
 import re
-from langchain_community.chat_models import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
 import os
 from pathlib import Path
 
@@ -15,7 +16,7 @@ os.environ["OPENAI_API_KEY"] = "sk-proj-nn1D0IAoJKi-jRcdpwusKjWjYM35mlQX0ErzEjWf
 
 
 
-# -------- 1️⃣ Extrai dados do pré-contrato --------
+# -------- 1) Extrai dados do pré-contrato --------
 def extract_contract_data(path):
     doc = Document(path)
     data = {"text": "", "tables": []}
@@ -29,187 +30,104 @@ def extract_contract_data(path):
             row_data = [cell.text.strip() for cell in row.cells]
             table_data.append(row_data)
         data["tables"].append(table_data)
-
     return data
 
 
-# -------- 2️⃣ Limpa marcações Markdown --------
-def clean_markdown(text: str) -> str:
-    text = re.sub(r"(\*{1,2}|#{1,6})", "", text)
-    return text.strip()
+# -------- 2) Limpa marcações --------
+def limpa_marcacoes(texto: str) -> str:
+    return texto.replace("**", "").replace("--", "—")
 
 
-# -------- 3️⃣ Detecta títulos --------
-def is_section_title(line: str) -> bool:
-    line = line.strip()
-    if not line:
-        return False
-
-    # Casos clássicos de Markdown
-    if line.startswith("###") or line.startswith("##") or line.startswith("#"):
-        return True
-    if line.startswith("**") and line.endswith("**"):
-        return True
-
-    # Títulos totalmente em maiúsculas
-    if line.isupper() and len(line) < 150:
-        return True
-
-    # 🧩 NOVO: títulos tipo frase (ex: Quadro de Honorários da Intermediação)
-    if (
-        re.match(
-            r"^(?=.{3,150}$)([A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]+)(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç]+)*$",
-            line,
-        )
-        and not line.endswith(".")
-    ):
-        return True
-
-    return False
+# -------- 3) Separa assinaturas --------
+def separar_assinaturas(texto: str):
+    padrao = re.compile(r'<<<ASSINATURAS_INICIO>>>(.*?)<<<ASSINATURAS_FIM>>>', re.DOTALL | re.IGNORECASE)
+    m = padrao.search(texto)
+    if not m:
+        return texto.strip(), ""
+    assin = m.group(1).strip()
+    corpo = (texto[:m.start()] + texto[m.end():]).strip()
+    return corpo, assin
 
 
-# -------- 4️⃣ Cria tabela genérica padrão --------
-def create_section_table(doc, title, content):
-    title = clean_markdown(title)
-    content = clean_markdown(content)
+# -------- 4) Adiciona parágrafos simples --------
+def add_paragrafos(doc: Document, texto: str):
+    for line in texto.split("\n"):
+        line = line.rstrip()
+        if line == "":
+            doc.add_paragraph("")
+        else:
+            p = doc.add_paragraph(line, style="Normal")
+            for run in p.runs:
+                run.font.size = Pt(12)
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
-    table = doc.add_table(rows=2, cols=1)
 
-    for row in table.rows:
-        for cell in row.cells:
-            cell._tc.get_or_add_tcPr().append(
-                parse_xml(
-                    r'<w:tcBorders %s>'
-                    r'<w:top w:val="single" w:sz="4" w:color="D9D9D9"/>'
-                    r'<w:left w:val="single" w:sz="4" w:color="D9D9D9"/>'
-                    r'<w:bottom w:val="single" w:sz="4" w:color="D9D9D9"/>'
-                    r'<w:right w:val="single" w:sz="4" w:color="D9D9D9"/>'
-                    r'</w:tcBorders>' % nsdecls("w")
-                )
+# -------- 5) Adiciona tabelas com bordas cinza e fonte 12 --------
+def add_tabelas_geradas(doc: Document, texto: str):
+    # garante estilo de tabela existente
+    if "Table Grid" not in [s.name for s in doc.styles]:
+        doc.styles.add_style("Table Grid", WD_STYLE_TYPE.TABLE)
+
+    padrao_tabela = re.compile(r"<<<TABELA_INICIO>>>(.*?)<<<TABELA_FIM>>>", re.DOTALL | re.IGNORECASE)
+    partes = padrao_tabela.split(texto)
+    segmentos = []
+
+    for i, parte in enumerate(partes):
+        if i % 2 == 0:
+            segmentos.append(("texto", parte.strip()))
+        else:
+            segmentos.append(("tabela", parte.strip()))
+
+    for tipo, conteudo in segmentos:
+        if tipo == "texto":
+            add_paragrafos(doc, conteudo)
+            continue
+
+        conteudo = conteudo.strip()
+        if not conteudo:
+            continue
+
+        # --- Detecta se o bloco contém parcelas ---
+        contem_parcelas = bool(re.search(r"\d+[ªº]?\s*parcela", conteudo, flags=re.IGNORECASE))
+
+        if contem_parcelas:
+            # Agrupa cada parcela inteira
+            blocos_parcelas = re.findall(
+                r"((?:\d+[ªº]?\s*parcela).*?)(?=(?:\d+[ªº]?\s*parcela|$))",
+                conteudo,
+                flags=re.IGNORECASE | re.DOTALL,
             )
 
-    # Título
-    title_cell = table.cell(0, 0)
-    p_title = title_cell.paragraphs[0]
-    run_title = p_title.add_run(title)
-    run_title.bold = True
-    run_title.font.size = Pt(12)
-    p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            # Captura o cabeçalho antes das parcelas
+            cabecalho_match = re.split(r"\d+[ªº]?\s*parcela", conteudo, maxsplit=1, flags=re.IGNORECASE)
+            cabecalho = cabecalho_match[0].strip() if len(cabecalho_match) > 1 else ""
 
-    # Conteúdo
-    content_cell = table.cell(1, 0)
-    p_content = content_cell.paragraphs[0]
-    run_content = p_content.add_run(content)
-    run_content.font.size = Pt(12)
-    p_content.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            # Constrói as linhas da tabela
+            linhas = []
+            if cabecalho:
+                linhas.append(cabecalho)
+            for bloco in blocos_parcelas:
+                # Preserva quebras de linha internas dentro de cada parcela
+                linhas_bloco = [l.strip() for l in bloco.splitlines() if l.strip()]
+                for l in linhas_bloco:
+                    linhas.append(l)
+                # Adiciona uma linha em branco entre parcelas
+                linhas.append("")
 
-    doc.add_paragraph()
+            # Cria tabela com todas as linhas unificadas
+            tabela = doc.add_table(rows=len(linhas), cols=1)
+            tabela.style = "Table Grid"
 
+            for i, linha in enumerate(linhas):
+                p = tabela.cell(i, 0).paragraphs[0]
+                run = p.add_run(linha)
+                run.font.size = Pt(12)
+                if i == 0:
+                    run.bold = True  # título em negrito
+                p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
-# -------- 5️⃣ Cria tabela de pagamento --------
-def create_pagamento_table(doc, title, content):
-    """
-    Cria tabela com 3 colunas (Valor da Parcela | Forma de Pagamento | Data de Pagamento),
-    mantendo o texto integral do pré-contrato para cada parcela.
-    Agora a 'Data de Pagamento' captura qualquer formato textual ou numérico.
-    """
-    title = clean_markdown(title)
-    content = clean_markdown(content)
-
-    # 🔹 Extrai o valor total do imóvel
-    valor_total_match = re.search(r"R\$ ?[\d\.,]+\s*\(.*?reais\)", content, re.IGNORECASE)
-    valor_total_texto = valor_total_match.group(0) if valor_total_match else None
-
-    # 🔹 Detecta blocos de parcelas
-    parcelas = re.findall(
-        r"(\d+[ªº]?\s*parcela.*?)(?=(\d+[ªº]?\s*parcela|$))",
-        content,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-
-    # ---------- Cabeçalho ----------
-    p_title = doc.add_paragraph()
-    run_title = p_title.add_run(title.upper())
-    run_title.bold = True
-    run_title.font.size = Pt(12)
-    p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-    if valor_total_texto:
-        p_total = doc.add_paragraph()
-        run_total = p_total.add_run(f"Valor total do imóvel: {valor_total_texto}")
-        run_total.bold = True
-        run_total.font.size = Pt(12)
-        p_total.alignment = WD_ALIGN_PARAGRAPH.LEFT
-
-    doc.add_paragraph()  # espaçamento
-
-    # ---------- Criação da tabela ----------
-    table = doc.add_table(rows=1, cols=3)
-    headers = ["Valor da Parcela", "Forma de Pagamento", "Data de Pagamento"]
-    hdr_cells = table.rows[0].cells
-    for i, h in enumerate(headers):
-        hdr_cells[i].text = h
-        hdr_cells[i].paragraphs[0].runs[0].bold = True
-        hdr_cells[i].paragraphs[0].runs[0].font.size = Pt(12)
-        hdr_cells[i].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-    # ---------- Borda cinza ----------
-    for row in table.rows:
-        for cell in row.cells:
-            cell._tc.get_or_add_tcPr().append(
-                parse_xml(
-                    r'<w:tcBorders %s>'
-                    r'<w:top w:val="single" w:sz="4" w:color="D9D9D9"/>'
-                    r'<w:left w:val="single" w:sz="4" w:color="D9D9D9"/>'
-                    r'<w:bottom w:val="single" w:sz="4" w:color="D9D9D9"/>'
-                    r'<w:right w:val="single" w:sz="4" w:color="D9D9D9"/>'
-                    r'</w:tcBorders>' % nsdecls("w")
-                )
-            )
-
-    # ---------- Preenche cada linha ----------
-    if parcelas:
-        for idx, par in enumerate(parcelas, start=1):
-            trecho = clean_markdown(par[0].strip())
-
-            valor = re.search(r"R\$ ?[\d\.,]+.*?(reais)?", trecho, re.IGNORECASE)
-            forma = re.search(
-                r"(?i)(forma.?de.?pagamento[:\-\–]?\s*)(.+?)(?:\.|$|\n|\r)",
-                trecho,
-                re.DOTALL,
-            )
-            data = re.search(
-                r"(?i)(data.?do.?pagamento|data.?de.?pagamento)[:\-\–]?\s*(.+?)(?:\.|$|\n|\r)",
-                trecho,
-                re.DOTALL,
-            )
-
-            row = table.add_row()
-            cells = row.cells
-
-            # Coluna 1: Valor
-            val_text = valor.group(0).strip() if valor else "-"
-            p_val = cells[0].paragraphs[0]
-            run_val = p_val.add_run(val_text)
-            run_val.font.size = Pt(12)
-            p_val.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-            # Coluna 2: Forma de pagamento
-            forma_text = forma.group(2).strip() if forma else "-"
-            p_forma = cells[1].paragraphs[0]
-            run_forma = p_forma.add_run(forma_text)
-            run_forma.font.size = Pt(12)
-            p_forma.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-
-            # Coluna 3: Data de pagamento
-            data_text = data.group(2).strip() if data else "-"
-            p_data = cells[2].paragraphs[0]
-            run_data = p_data.add_run(data_text)
-            run_data.font.size = Pt(12)
-            p_data.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-
-            for c in cells:
-                c._tc.get_or_add_tcPr().append(
+                # bordas cinza suaves
+                tabela.cell(i, 0)._tc.get_or_add_tcPr().append(
                     parse_xml(
                         r'<w:tcBorders %s>'
                         r'<w:top w:val="single" w:sz="4" w:color="D9D9D9"/>'
@@ -219,36 +137,44 @@ def create_pagamento_table(doc, title, content):
                         r'</w:tcBorders>' % nsdecls("w")
                     )
                 )
-    else:
-        # fallback
-        row = table.add_row()
-        row.cells[0].merge(row.cells[2])
-        p = row.cells[0].paragraphs[0]
-        run = p.add_run(content)
-        run.font.size = Pt(12)
-        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
-    doc.add_paragraph()  # primeira linha em branco
-    doc.add_paragraph()  # segunda linha em branco
-    
-            # --- AQUI: título fora de tabela logo abaixo da tabela de parcelas ---
-    title_hon = doc.add_paragraph()
-    run_hon = title_hon.add_run("QUADRO DE HONORÁRIOS")
-    run_hon.bold = True       # negrito, sem ** no texto
-    run_hon.font.size = Pt(12)
-    title_hon.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_paragraph("")  # espaço após a tabela
+            continue
 
-    doc.add_paragraph()  # espaço após o título
+        # --- Bloco de tabela comum (sem parcelas) ---
+        linhas = [r.strip() for r in conteudo.split("\n") if r.strip()]
+        usa_pipes = any("|" in linha for linha in linhas)
+        colunas = max(len(linha.split("|")) for linha in linhas) if usa_pipes else 1
 
-    # ---------- Impede quebra de página ----------
-    for row in table.rows:
-        tr = row._tr
-        trPr = tr.get_or_add_trPr()
-        trPr.append(parse_xml("<w:cantSplit xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'/>"))
+        tabela = doc.add_table(rows=len(linhas), cols=colunas)
+        tabela.style = "Table Grid"
 
+        for i, linha in enumerate(linhas):
+            valores = [c.strip() for c in linha.split("|")] if usa_pipes else [linha]
+            for j, valor in enumerate(valores):
+                p = tabela.cell(i, j).paragraphs[0]
+                run = p.add_run(valor)
+                run.font.size = Pt(12)
+                if i == 0:
+                    run.bold = True  # título em negrito
+                p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
+                # bordas cinza suaves
+                tabela.cell(i, j)._tc.get_or_add_tcPr().append(
+                    parse_xml(
+                        r'<w:tcBorders %s>'
+                        r'<w:top w:val="single" w:sz="4" w:color="D9D9D9"/>'
+                        r'<w:left w:val="single" w:sz="4" w:color="D9D9D9"/>'
+                        r'<w:bottom w:val="single" w:sz="4" w:color="D9D9D9"/>'
+                        r'<w:right w:val="single" w:sz="4" w:color="D9D9D9"/>'
+                        r'</w:tcBorders>' % nsdecls("w")
+                    )
+                )
 
-    doc.add_paragraph()  # espaçamento final
+        doc.add_paragraph("")  # espaço após a tabela
+
+   # doc.save(output_path)
+   # print(f"Contrato gerado em: {output_path}")
 
 
 # -------- 6️⃣ Gera conteúdo formatado --------
@@ -272,22 +198,98 @@ def gerar_conteudo(pre_contrato_path, tipo_contrato, saida_path):
     dados_extraidos = extract_contract_data(pre_contrato_path)
     dados_json = json.dumps(dados_extraidos, ensure_ascii=False)
 
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    llm = ChatOpenAI(
+    model="gpt-4o",
+    temperature=0,
+    max_retries=2,
+    timeout=120
+)
+
 
     prompt = ChatPromptTemplate.from_template("""
 Você é um assistente jurídico especializado em contratos imobiliários.
 
-Com base nas informações extraídas abaixo (texto e tabelas),
-gere o conteúdo completo do contrato **preservando todos os dados originais**
-e adaptando-os ao estilo e estrutura textual do layout indicado.
+Tarefa:
+- Reescreva o contrato completo (sem resumir nem omitir dados).
+- Adapte o texto para o estilo e a estrutura do layout indicado (mesmos títulos e ordem).
+- NÃO use **markdown**, **negrito** ou símbolos.
+- Quando identificar listas ou quadros de dados (ex: Partes, Posse, Honorários),
+  represente-os como tabelas delimitadas por:
 
-Regras:
-- Mantenha títulos e estrutura.
-- Use marcação Markdown para formatação (**negrito**, ### títulos).
-- Não altere cabeçalhos nem rodapés.
-- Inclua o conteúdo original do pré-contrato organizado por seções.
+  <<<TABELA_INICIO>>>
+  Coluna1
+  Dado1
+  <<<TABELA_FIM>>>
 
-LAYOUT DE DESTINO:
+- Ao final, coloque as assinaturas entre:
+  <<<ASSINATURAS_INICIO>>>
+  (nomes, CPFs, testemunhas, data e local)
+  <<<ASSINATURAS_FIM>>>
+
+🔴 REGRAS CRÍTICAS PARA PARCELAS (leia com atenção):
+
+1. ESTRUTURA GERAL:
+   Envolva TODO o bloco de parcelas entre os marcadores, SEM linha em branco após o valor total:
+   
+   <<<TABELA_INICIO>>>
+   Valor e forma de Pagamento
+   Valor total do negócio: R$ XXX.XXX,XX (valor por extenso)
+   1ª parcela
+   [informações da 1ª parcela - veja formato abaixo]
+   
+   2ª parcela
+   [informações da 2ª parcela]
+   
+   (...)
+   <<<TABELA_FIM>>>
+   
+   ⚠️ IMPORTANTE: NÃO deixe linha em branco entre "Valor total do negócio" e "1ª parcela"
+
+2. FORMATO DE CADA PARCELA (CRÍTICO):
+   Cada parcela deve seguir EXATAMENTE este formato com 2 linhas:
+   
+   Xª parcela
+   Valor: R$ XX.XXX,XX - Data do Pagamento: [data ou condição]
+   Forma de pagamento: [descrever forma COMPLETA incluindo banco, agência, conta, titular, CPF, etc. TUDO em uma linha separado por traços]
+   
+   Exemplo CORRETO da estrutura COMPLETA:
+   <<<TABELA_INICIO>>>
+   Valor e forma de Pagamento
+   Valor total do negócio: R$ 208.000,00 (Duzentos e oito mil reais)
+   1ª parcela
+   Valor: R$ 12.000,00 - Data do Pagamento: Ato de assinatura do presente instrumento
+   Forma de pagamento: TED/PIX - Banco Itau - Agência 4459 - Conta Corrente 84234-2 - titular Deyla Flavia Bertolazzo - CPF 370.990.108-16
+   
+   2ª parcela
+   Valor: R$ 29.600,00 - Data do Pagamento: Ato da assinatura
+   Forma de pagamento: TED/PIX - Banco Itau - Agência 4459 - Conta Corrente 84234-2 - titular Deyla Flavia Bertolazzo - CPF 370.990.108-16
+   <<<TABELA_FIM>>>
+
+3. O QUE NÃO FAZER (erros comuns):
+   ❌ NÃO deixe linha em branco entre "Valor total do negócio" e "1ª parcela"
+   ❌ NÃO quebre os dados bancários em múltiplas linhas
+   ❌ NÃO coloque cada informação bancária em linha separada
+   ❌ NÃO use quebras de linha dentro da "Forma de pagamento"
+   
+4. O QUE FAZER:
+   ✅ Primeira linha: Título da parcela (ex: "1ª parcela")
+   ✅ Segunda linha: Valor e Data juntos (separados por " - ")
+   ✅ Terceira linha: "Forma de pagamento: " seguido de TODOS os dados bancários em sequência (separados por " - ")
+   ✅ Deixe UMA linha em branco APENAS entre parcelas diferentes (não antes da primeira)
+
+5. TRATAMENTO DE OBSERVAÇÕES/CONDIÇÕES:
+   Se houver observações ou condições adicionais da parcela (ex: "FGTS será utilizado", "Financiamento bancário"), 
+   adicione como quarta linha "Observação: [texto]"
+   
+   Exemplo:
+   3ª parcela
+   Valor: R$ 166.400,00 - Data do Pagamento: Dentro de 120 dias
+   Forma de pagamento: Financiamento bancário junto ao banco XYZ
+   Observação: Sujeito a aprovação de crédito
+
+LEMBRE-SE: Todo o bloco (desde "Valor e forma de Pagamento" até a última parcela) deve estar entre <<<TABELA_INICIO>>> e <<<TABELA_FIM>>> sem quebras que separem o cabeçalho das parcelas.
+
+LAYOUT DE DESTINO (somente como guia de estrutura textual — não copie logotipos/cabeçalho):
 {layout}
 
 INFORMAÇÕES EXTRAÍDAS:
@@ -298,66 +300,40 @@ INFORMAÇÕES EXTRAÍDAS:
     mensagem = prompt.format_messages(layout=layout_text, dados=dados_json)
     resposta = llm.invoke(mensagem)
     conteudo_final = resposta.content.strip()
+    corpo, assinaturas = separar_assinaturas(conteudo_final)
+    
+    
+    padroes_remover = [
+        r"INSTRUMENTO\s+PARTICULAR\s+DE\s+COMPROMISSO\s+DE\s+COMPRA\s+E\s+VENDA",
+        r"QUADRO\s+RESUMO"
+    ]
+    for padrao in padroes_remover:
+        corpo = re.sub(padrao, "", corpo, flags=re.IGNORECASE)
+    corpo = re.sub(r"\n{3,}", "\n\n", corpo).strip()
 
+    print(" Inserindo conteúdo no modelo preservando layout e estilos...")
     modelo = Document(modelo_layout_path)
 
-    # Localiza onde inserir
-    insert_index = 0
+    # ponto de inserção após "Quadro Resumo"
+    insert_index = None
     for i, p in enumerate(modelo.paragraphs):
-        if "Quadro Resumo" in p.text:
+        if "Quadro Resumo" in (p.text or ""):
             insert_index = i + 1
             break
+    if insert_index is None:
+        insert_index = len(modelo.paragraphs)
 
-    # Remove conteúdo antigo
     while len(modelo.paragraphs) > insert_index:
         p = modelo.paragraphs[-1]
         p._element.getparent().remove(p._element)
 
-    # -------- 7️⃣ Separa seções --------
-    linhas = conteudo_final.split("\n")
-    secoes = []
-    titulo_atual = None
-    conteudo_atual = []
-
-    for linha in linhas:
-        if not linha.strip():
-            continue
-
-        if "CLÁUSULA PRIMEIRA – DAS CONDIÇÕES ESPECÍFICAS DO NEGÓCIO" in linha:
-            if titulo_atual and conteudo_atual:
-                secoes.append((titulo_atual, "\n".join(conteudo_atual)))
-            break
-
-        if is_section_title(linha):
-            if titulo_atual and conteudo_atual:
-                secoes.append((titulo_atual, "\n".join(conteudo_atual)))
-            titulo_atual = linha
-            conteudo_atual = []
-        else:
-            conteudo_atual.append(linha)
-
-    # -------- 8️⃣ Gera tabelas --------
-    for titulo, conteudo in secoes:
-        titulo_limpo = clean_markdown(titulo).upper()
-        if "VALOR" in titulo_limpo and "PAGAMENTO" in titulo_limpo:
-            create_pagamento_table(modelo, titulo, conteudo)
-        elif "HONORÁRIO" in titulo_limpo or "HONORARIOS" in titulo_limpo:
-            create_section_table(modelo, titulo, conteudo)
-        else:
-            create_section_table(modelo, titulo, conteudo)
-
-    # -------- 9️⃣ Adiciona cláusulas --------
-    restante = False
-    for linha in linhas:
-        if "CLÁUSULA PRIMEIRA – DAS CONDIÇÕES ESPECÍFICAS DO NEGÓCIO" in linha:
-            restante = True
-        if restante:
-            texto_limpo = clean_markdown(linha)
-            p = modelo.add_paragraph(texto_limpo)
-            for run in p.runs:
-                run.font.size = Pt(12)
-            if "CLÁUSULA" in texto_limpo.upper():
-                p.runs[0].bold = True
+    # corpo (com tabelas)
+    add_tabelas_geradas(modelo, corpo)
+    
+    # assinaturas (se existirem)
+    if assinaturas:
+        modelo.add_paragraph("")
+        add_paragrafos(modelo, assinaturas)
 
     modelo.save(saida_path)
     print(f"✅ Contrato final salvo com layout preservado, fonte 12 e quadro de pagamento detalhado em: {saida_path}")
