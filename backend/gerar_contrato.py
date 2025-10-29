@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 
 
+os.environ["OPENAI_API_KEY"] = "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"
 
 
 
@@ -50,14 +51,42 @@ def separar_assinaturas(texto: str):
 
 # -------- 4) Adiciona parágrafos simples --------
 def add_paragrafos(doc: Document, texto: str):
+    # Padrões para detectar cláusulas e parágrafos
+    padrao_clausula = re.compile(
+    r'^\s*CL[ÁA]USULA\s+[A-ZÀ-Ü\s]+[\–\—\-:.\)]\s*.*$',
+    re.IGNORECASE
+)
+    padrao_paragrafo = re.compile(r'^(PARÁGRAFO\s+[A-ZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞ]+\s*[:.].*)', re.IGNORECASE)
+    
     for line in texto.split("\n"):
         line = line.rstrip()
         if line == "":
             doc.add_paragraph("")
         else:
-            p = doc.add_paragraph(line, style="Normal")
-            for run in p.runs:
-                run.font.size = Pt(12)
+            p = doc.add_paragraph("", style="Normal")
+            
+            # Verifica se é cláusula ou parágrafo
+            if padrao_clausula.match(line):
+                run = p.add_run(line)
+                run.bold = True
+
+            elif padrao_paragrafo.match(line):
+                # Divide título e corpo (ex: "PARÁGRAFO PRIMEIRO: O pagamento...")
+                partes = re.split(r"[:.]", line, maxsplit=1)
+                titulo = partes[0].strip() + (":" if ":" in line else ".")
+                run_titulo = p.add_run(titulo + " ")
+                run_titulo.bold = True
+
+                if len(partes) > 1:
+                    corpo = partes[1].strip()
+                    run_corpo = p.add_run(corpo)
+                    run_corpo.bold = False
+
+            else:
+                run = p.add_run(line)
+
+            
+            run.font.size = Pt(12)
             p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
 
@@ -121,9 +150,13 @@ def add_tabelas_geradas(doc: Document, texto: str):
                 p = tabela.cell(i, 0).paragraphs[0]
                 run = p.add_run(linha)
                 run.font.size = Pt(12)
+                
+                # PRIMEIRA CÉLULA: negrito e centralizado
                 if i == 0:
-                    run.bold = True  # título em negrito
-                p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                    run.bold = True
+                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                else:
+                    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
                 # bordas cinza suaves
                 tabela.cell(i, 0)._tc.get_or_add_tcPr().append(
@@ -154,9 +187,16 @@ def add_tabelas_geradas(doc: Document, texto: str):
                 p = tabela.cell(i, j).paragraphs[0]
                 run = p.add_run(valor)
                 run.font.size = Pt(12)
-                if i == 0:
-                    run.bold = True  # título em negrito
-                p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                
+                # PRIMEIRA CÉLULA (linha 0, coluna 0): negrito e centralizado
+                if i == 0 and j == 0:
+                    run.bold = True
+                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                elif i == 0:
+                    run.bold = True  # primeira linha mantém negrito
+                    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                else:
+                    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
                 # bordas cinza suaves
                 tabela.cell(i, j)._tc.get_or_add_tcPr().append(
@@ -171,9 +211,6 @@ def add_tabelas_geradas(doc: Document, texto: str):
                 )
 
         doc.add_paragraph("")  # espaço após a tabela
-
-   # doc.save(output_path)
-   # print(f"Contrato gerado em: {output_path}")
 
 
 # -------- 6️⃣ Gera conteúdo formatado --------
@@ -344,13 +381,13 @@ INFORMAÇÕES EXTRAÍDAS:
         for p in paragrafos_extra:
             texto_paragrafos += f"\n\n{p}"
     else:
-        print(" Nenhum parágrafo adicional recebido.")
+        print("⚠️ Nenhum parágrafo adicional recebido.")
     
     # ---------- Inserir parágrafos adicionais selecionados no front ----------
     if paragrafos_extra:
         modelo.add_page_break()
         modelo.add_paragraph("CLÁUSULAS ADICIONAIS", style="Normal").runs[0].bold = True
-        modelo.add_paragraph("")  
+        modelo.add_paragraph("")  # espaço
 
         for i, texto_extra in enumerate(paragrafos_extra, start=1):
             modelo.add_paragraph(f"{i}. {texto_extra}", style="Normal")
