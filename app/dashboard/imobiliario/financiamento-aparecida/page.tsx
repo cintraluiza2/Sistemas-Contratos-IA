@@ -44,9 +44,6 @@ export default function CompraVendaVistaPage() {
 
     // ✅ Armazena temporariamente no localStorage
     localStorage.setItem("parecerGerado", base64);
-
-    // Redireciona para página de resultado
-    router.push("/dashboard/resultado?tipo=parecer");
   };
 
 
@@ -96,7 +93,6 @@ export default function CompraVendaVistaPage() {
     } catch (error) {
       console.error("Erro ao gerar contrato:", error);
       alert("Erro ao gerar contrato. Veja o console para detalhes.");
-    } finally {
       setIsProcessing(false);
     }
   };
