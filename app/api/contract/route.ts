@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server"
 
+
 export async function POST(req: Request) {
   try {
     const formData = await req.formData()
     const backendUrl = "http://localhost:5000/generate"
 
-    // 🔹 Verifica de onde veio a requisição (usando o referer ou um campo oculto)
+    
     const referer = req.headers.get("referer") || ""
     let tipoContrato = "compra-venda" // padrão
+    
 
     if (referer.includes("financiamento-goiania")) {
       tipoContrato = "financiamento-go"
@@ -19,7 +21,7 @@ export async function POST(req: Request) {
 
     // 🔹 Adiciona o tipo ao FormData antes de enviar ao Flask
     formData.append("tipo_contrato", tipoContrato)
-
+    
     const response = await fetch(backendUrl, {
       method: "POST",
       body: formData,
