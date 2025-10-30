@@ -25,7 +25,7 @@ export default function CompraVendaVistaPage() {
     const formData = new FormData();
     files.forEach((f) => formData.append("files", f));
 
-    const res = await fetch("https://4eb693410904.ngrok-free.app/parecer", {
+    const res = await fetch("/api/parecer", {
       method: "POST",
       body: formData,
     });
