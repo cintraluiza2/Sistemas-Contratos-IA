@@ -69,7 +69,7 @@ export default function CompraVendaVistaPage() {
       formData.append("pre_contrato", preContrato);
       formData.append("selectedParagraphs", JSON.stringify(selectedParagraphs))
 
-      const response = await fetch("https://4eb693410904.ngrok-free.app/generate", {
+      const response = await fetch("/api/generate", {
         method: "POST",
         body: formData,
       });
