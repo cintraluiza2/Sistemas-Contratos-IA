@@ -25,7 +25,7 @@ export default function CompraVendaVistaPage() {
     const formData = new FormData();
     files.forEach((f) => formData.append("files", f));
 
-    const res = await fetch("https://4eb693410904.ngrok-free.app/parecer", {
+    const res = await fetch("/api/parecer", {
       method: "POST",
       body: formData,
     });
@@ -44,9 +44,6 @@ export default function CompraVendaVistaPage() {
 
     // ✅ Armazena temporariamente no localStorage
     localStorage.setItem("parecerGerado", base64);
-
-    // Redireciona para página de resultado
-    router.push("/dashboard/resultado?tipo=parecer");
   };
 
 
@@ -99,7 +96,6 @@ export default function CompraVendaVistaPage() {
     } catch (error) {
       console.error("Erro ao gerar contrato:", error);
       alert("Erro ao gerar contrato. Veja o console para detalhes.");
-    } finally {
       setIsProcessing(false);
     }
   };

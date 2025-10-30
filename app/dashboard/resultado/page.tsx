@@ -16,7 +16,7 @@ function ResultadoContent() {
   const tipo = searchParams.get("tipo") || "contrato"
 
   const { data: session, status } = useSession({
-    required: true, // Magia! Se não estiver logado, redireciona para a página de login
+    required: true,
     onUnauthenticated() {
       router.push("/login");
     },
