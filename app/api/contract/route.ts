@@ -4,7 +4,7 @@ import { NextResponse } from "next/server"
 export async function POST(req: Request) {
   try {
     const formData = await req.formData()
-    const backendUrl = "http://localhost:5000/generate"
+    const backendUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"}/generate`
 
     
     const referer = req.headers.get("referer") || ""

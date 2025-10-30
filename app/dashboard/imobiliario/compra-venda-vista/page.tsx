@@ -69,7 +69,7 @@ export default function CompraVendaVistaPage() {
       formData.append("pre_contrato", preContrato);
       formData.append("selectedParagraphs", JSON.stringify(selectedParagraphs))
 
-      const response = await fetch("/api/generate", {
+      const response = await fetch("/api/contract", {
         method: "POST",
         body: formData,
       });

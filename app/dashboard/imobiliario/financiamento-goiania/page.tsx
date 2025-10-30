@@ -69,7 +69,7 @@ export default function CompraVendaVistaPage() {
       formData.append("selectedParagraphs", JSON.stringify(selectedParagraphs))
       formData.append("tipo_contrato", "financiamento-go"); // <- muda aqui
 
-      const response = await fetch("/api/generate", {
+      const response = await fetch("/api/contract", {
         method: "POST",
         body: formData,
       });
