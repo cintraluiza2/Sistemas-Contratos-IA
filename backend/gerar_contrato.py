@@ -10,7 +10,7 @@ import google.generativeai as genai
 import os
 
 
-os.environ["GEMINI_API_KEY"] = "AIzaSyDDGjCPRYR_JmYEuFmrtB00guZWOGrq1ko"
+
 
 
 # -------- 1) Extrai dados do pré-contrato --------
