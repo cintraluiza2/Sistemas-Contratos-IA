@@ -6,10 +6,13 @@ from docx.oxml.ns import nsdecls
 from docx.enum.style import WD_STYLE_TYPE
 import json
 import re
-import google.generativeai as genai
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
 import os
+from pathlib import Path
 
 
+os.environ["OPENAI_API_KEY"] = "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"
 
 
 
@@ -209,24 +212,17 @@ def add_tabelas_geradas(doc: Document, texto: str):
         doc.add_paragraph("")  # espaço após a tabela
 
 
-# -------- 6) Gera conteúdo completo --------
-def gerar_conteudo(pre_contrato_path, modelo_layout_path, saida_path):
-    print("📄 Extraindo dados do pré-contrato...")
-    dados_extraidos = extract_contract_data(pre_contrato_path)
-    dados_json = json.dumps(dados_extraidos, ensure_ascii=False)
-
-    # Configura o Gemini
-    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-    
+# -------- 6️⃣ Gera conteúdo formatado --------
+def gerar_conteudo(pre_contrato_path, tipo_contrato, saida_path, paragrafos_extra=None):
+    print(f"🔹 Gerando contrato do tipo: {tipo_contrato}")
     
     if paragrafos_extra is None:
         paragrafos_extra = []
     else:
-        print(f"📋 Parágrafos extras recebidos: {len(paragrafos_extra)}")
+        print(f" Parágrafos recebidos: {paragrafos_extra}")
 
     BASE_DIR = Path(__file__).resolve().parent
 
-    # Seleciona o modelo baseado no tipo de contrato
     if tipo_contrato == "compra-venda":
         modelo_layout_path = BASE_DIR / "compra-venda.docx"
     elif tipo_contrato == "financiamento-go":
@@ -237,23 +233,20 @@ def gerar_conteudo(pre_contrato_path, modelo_layout_path, saida_path):
         raise ValueError(f"❌ Tipo de contrato desconhecido: {tipo_contrato}")
 
     if not modelo_layout_path.exists():
-        raise FileNotFoundError(f"❌ Modelo não encontrado: {modelo_layout_path}")
+        raise FileNotFoundError(f"Modelo não encontrado: {modelo_layout_path}")
     
-    # Cria o modelo (equivalente ao gpt-4o)
-    # Opções: 'gemini-pro', 'gemini-1.5-flash', 'gemini-1.5-pro-latest'
-    model = genai.GenerativeModel(
-        model_name='gemini-flash-latest',  # ou 'gemini-pro' para versão estável
-        generation_config={
-            'temperature': 0,
-            'top_p': 0.95,
-            'top_k': 40,
-            'max_output_tokens': 8192,
-        }
-    )
+    dados_extraidos = extract_contract_data(pre_contrato_path)
+    dados_json = json.dumps(dados_extraidos, ensure_ascii=False)
 
-    layout_text = "\n".join([p.text for p in Document(modelo_layout_path).paragraphs])
-    
-    prompt = f"""
+    llm = ChatOpenAI(
+    model="gpt-4o",
+    temperature=0,
+    max_retries=2,
+    timeout=120
+)
+
+
+    prompt = ChatPromptTemplate.from_template("""
 Você é um assistente jurídico especializado em contratos imobiliários.
 
 Tarefa:
@@ -400,19 +393,33 @@ LEMBRE-SE:
 - Qualquer informação sobre honorários, comissões, taxas ou despesas também deve estar em sua própria tabela
 - NUNCA omita informações financeiras do documento original
 
+
+🟢 REGRAS PARA CONDIÇÕES ESPECÍFICAS DO NEGÓCIO:
+
+1. Se o pré-contrato contiver uma seção intitulada "CONDIÇÕES ESPECÍFICAS DO NEGÓCIO" (ou texto equivalente localizado após os honorários e antes das assinaturas):
+   - O conteúdo dessa seção deve ser INCORPORADO dentro da **CLÁUSULA PRIMEIRA** do contrato final.
+   - Essa incorporação deve ser feita **sem excluir ou substituir** os parágrafos já existentes da CLÁUSULA PRIMEIRA.
+   - O conteúdo deve ser adicionado **após os parágrafos já existentes**, mantendo a coesão textual e as mesmas normas de estilo (fonte 12, alinhamento justificado, sem negrito).
+
+2. Preserve integralmente todas as informações dessa seção, mesmo que pareçam redundantes.
+
+3. Caso a seção "CONDIÇÕES ESPECÍFICAS DO NEGÓCIO" não exista no documento original, a CLÁUSULA PRIMEIRA deve permanecer inalterada.
+
+
 LAYOUT DE DESTINO (somente como guia de estrutura textual — não copie logotipos/cabeçalho):
-{layout_text}
+{layout}
 
 INFORMAÇÕES EXTRAÍDAS:
-{dados_json}
-"""
-    
-    print("🤖 Gerando conteúdo com Gemini...")
-    resposta = model.generate_content(prompt)
+{dados}
+""")
 
-    conteudo_final = limpa_marcacoes(resposta.text.strip())
+    layout_text = "\n".join([p.text for p in Document(modelo_layout_path).paragraphs])
+    mensagem = prompt.format_messages(layout=layout_text, dados=dados_json)
+    resposta = llm.invoke(mensagem)
+    conteudo_final = resposta.content.strip()
     corpo, assinaturas = separar_assinaturas(conteudo_final)
-
+    
+    
     padroes_remover = [
         r"INSTRUMENTO\s+PARTICULAR\s+DE\s+COMPROMISSO\s+DE\s+COMPRA\s+E\s+VENDA",
         r"QUADRO\s+RESUMO"
@@ -421,8 +428,7 @@ INFORMAÇÕES EXTRAÍDAS:
         corpo = re.sub(padrao, "", corpo, flags=re.IGNORECASE)
     corpo = re.sub(r"\n{3,}", "\n\n", corpo).strip()
 
-    print("📝 Inserindo conteúdo no modelo preservando layout e estilos...")
-
+    print(" Inserindo conteúdo no modelo preservando layout e estilos...")
     modelo = Document(modelo_layout_path)
 
     # ponto de inserção após "Quadro Resumo"
@@ -440,31 +446,34 @@ INFORMAÇÕES EXTRAÍDAS:
 
     # corpo (com tabelas)
     add_tabelas_geradas(modelo, corpo)
-
+    
     # assinaturas (se existirem)
     if assinaturas:
         modelo.add_paragraph("")
         add_paragrafos(modelo, assinaturas)
         
-        
+    texto_paragrafos = ""
+    if paragrafos_extra:
+        for p in paragrafos_extra:
+            texto_paragrafos += f"\n\n{p}"
+    else:
+        print("⚠️ Nenhum parágrafo adicional recebido.")
+    
+    # ---------- Inserir parágrafos adicionais selecionados no front ----------
     if paragrafos_extra:
         modelo.add_page_break()
-        titulo_adicional = modelo.add_paragraph("CLÁUSULAS ADICIONAIS", style="Normal")
-        titulo_adicional.runs[0].bold = True
-        titulo_adicional.runs[0].font.size = Pt(12)
-        titulo_adicional.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        modelo.add_paragraph("")
+        modelo.add_paragraph("CLÁUSULAS ADICIONAIS", style="Normal").runs[0].bold = True
+        modelo.add_paragraph("")  # espaço
 
         for i, texto_extra in enumerate(paragrafos_extra, start=1):
-            p = modelo.add_paragraph(f"{i}. {texto_extra}", style="Normal")
-            p.runs[0].font.size = Pt(12)
-            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            modelo.add_paragraph("")
-        
-        print(f"✅ {len(paragrafos_extra)} cláusulas adicionais inseridas no contrato.")
+            modelo.add_paragraph(f"{i}. {texto_extra}", style="Normal")
+            modelo.add_paragraph("")  # espaço entre parágrafos
+        print(f" {len(paragrafos_extra)} parágrafos adicionais inseridos no contrato.")
     else:
-        print("ℹ️  Nenhuma cláusula adicional recebida.")    
+        print(" Nenhum parágrafo adicional recebido para inserção.")
 
+    
     modelo.save(saida_path)
-    print(f"✅ Contrato final salvo: {saida_path}")
+    print(f"✅ Contrato final salvo com layout preservado, fonte 12 e quadro de pagamento detalhado em: {saida_path}")
+
 
