@@ -10,6 +10,7 @@ from langchain_openai import ChatOpenAI
 from uuid import uuid4
 from flask import request
 
+os.environ["OPENAI_API_KEY"] = "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"
 
 from pathlib import Path
 
@@ -87,8 +88,19 @@ def require_api_key_or_500():
 # ---------- CrewAI Agents & Tasks ----------
 
 # LLMs
-llm_analise_distribuicao = ChatOpenAI(model="gpt-4.1", temperature=0.3)
-llm_resumo_executivo = ChatOpenAI(model="gpt-4.1-nano", temperature=0.5)
+llm_analise_distribuicao = ChatOpenAI(
+    model="gpt-4o",
+    temperature=0.3,
+    max_retries=2,
+    timeout=120  
+)
+
+llm_resumo_executivo = ChatOpenAI(
+    model="gpt-4o-mini",
+    temperature=0.5,
+    max_retries=2,
+    timeout=60
+)
 
 # Agentes
 agente_analista_tecnico = Agent(
@@ -155,7 +167,7 @@ profissional e clara, para orientar sobre os riscos e soluções antes da formal
    - Para cada inconsistência, detalhe:
      - *Descrição* do problema.
      - *Gravidade* (baixa, média ou alta).
-   - Exemplos: divórcio não averbado, partilha incompleta, débitos de IPTU, divergência em dados da matrícula, ausência de documentos.
+   - Exemplos: divórcio não averbado, partilha incompleta, débitos de IPTU, divergência em dados da matrícula, ausência de documentos, duplicidade e/ou ausência de CPF/CNPJ.
 
 4. IMPLICAÇÕES LEGAIS
    - Explique, em linguagem clara, o que pode acontecer se cada inconsistência não for corrigida:
