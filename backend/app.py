@@ -46,6 +46,8 @@ def generate_contract():
         # 🔹 lê os parágrafos enviados pelo front
         paragrafos_raw = request.form.get("selectedParagraphs", "[]")
         print(f"🧾 Raw recebido: {paragrafos_raw}")
+        extra_text = request.form.get("extraText", "")
+        text_area_precontrato = request.form.get("textAreaContent", "")
 
         try:
             paragrafos = json.loads(paragrafos_raw)
@@ -54,24 +56,34 @@ def generate_contract():
             print(f"❌ Erro ao parsear JSON: {e}")
             paragrafos = []
 
-        if not uploaded_file:
-            return jsonify({"error": "Nenhum arquivo .docx recebido"}), 400
+        if not uploaded_file and not extra_text.strip():
+            return jsonify({"error": "Envie um arquivo ou escreva algo no campo de texto."}), 400
 
-        # 🔹 Salva o pré-contrato temporariamente
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp_pre:
-            uploaded_file.save(tmp_pre.name)
-            pre_path = tmp_pre.name
+        if uploaded_file:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp_pre:
+                uploaded_file.save(tmp_pre.name)
+                pre_path = tmp_pre.name
+            print("📄 DOCX recebido:", uploaded_file.filename)
+        else:
+            pre_path = None   
+            print("Nenhum DOCX enviado. Gerando contrato APENAS com texto digitado.")
+
 
         # 🔹 Gera saída temporária
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".docx").name
 
-        print(f" Arquivo recebido: {uploaded_file.filename}")
+       # print(f" Arquivo recebido: {uploaded_file.filename}")
         print(f" Tipo de contrato: {tipo_contrato}")
         print(" Requisição iniciada em /generate")
 
 
         # 🔹 Chama a função geradora passando os parágrafos do front
-        gerar_conteudo(pre_path, tipo_contrato, output_path, paragrafos_extra=paragrafos)
+        gerar_conteudo(pre_path, 
+                       tipo_contrato, 
+                       output_path, 
+                       paragrafos_extra=paragrafos,
+                       extra_text=extra_text,
+                       text_area_precontrato=text_area_precontrato)
 
         print(f"✅ Contrato gerado em: {output_path}")
         return send_file(output_path, as_attachment=True, download_name=f"contrato_{tipo_contrato}.docx")
