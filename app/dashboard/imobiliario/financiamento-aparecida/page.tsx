@@ -25,7 +25,7 @@ export default function CompraVendaVistaPage() {
     const formData = new FormData();
     files.forEach((f) => formData.append("files", f));
 
-    const res = await fetch("/api/parecer", {
+    const res = await fetch("http://127.0.0.1:8000/parecer", {
       method: "POST",
       body: formData,
     });
@@ -44,58 +44,70 @@ export default function CompraVendaVistaPage() {
 
     // ✅ Armazena temporariamente no localStorage
     localStorage.setItem("parecerGerado", base64);
+
+    // Redireciona para página de resultado
+    router.push("/dashboard/resultado?tipo=parecer");
   };
 
 
 
-  const handleProcess = async (files: File[], selectedParagraphs: string[]) => {
-    if (!files || files.length === 0) {
-      alert("Envie um arquivo .docx para processar.");
-      return;
-    }
+const handleProcess = async (files: File[], selectedParagraphs: string[], extraText: string ) => {
+  // ❌ 1) Agora só dá erro se NÃO houver nenhum arquivo
+  if (!files || files.length === 0) {
+    alert("Envie ao menos um arquivo para continuar.");
+    return;
+  }
 
-    const preContrato = files.find((file) => file.name.endsWith(".docx"));
-    if (!preContrato) {
-      alert("Nenhum arquivo .docx foi encontrado.");
-      return;
-    }
+  // 🔍 2) Tenta encontrar DOCX, mas não é obrigatório
+  const preContrato = files.find((file) => file.name.endsWith(".docx"));
 
-    setIsProcessing(true);
+  setIsProcessing(true);
 
-    try {
-      // 🧩 1️⃣ Gera o contrato — agora com tipo de contrato
-      const formData = new FormData();
+  console.log("Enviando requisição ao Flask!");
+  try {
+    // 3️⃣ Monta o FormData
+    const formData = new FormData();
+
+    // Envia o DOCX só se existir
+    if (preContrato) {
       formData.append("pre_contrato", preContrato);
-      formData.append("selectedParagraphs", JSON.stringify(selectedParagraphs))
-      formData.append("tipo_contrato", "financiamento-ms"); // <- muda aqui
-
-      const response = await fetch("/api/contract", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text);
-      }
-
-      const blob = await response.blob();
-      const arrayBuffer = await blob.arrayBuffer();
-      const base64 = btoa(
-        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-      );
-      localStorage.setItem("contratoGerado", base64);
-
-      await handleGenerateLegalOpinion(files);
-
-      router.push("/dashboard/resultado?tipo=financiamento-goiania");
-
-    } catch (error) {
-      console.error("Erro ao gerar contrato:", error);
-      alert("Erro ao gerar contrato. Veja o console para detalhes.");
-      setIsProcessing(false);
     }
-  };
+
+    formData.append("selectedParagraphs", JSON.stringify(selectedParagraphs));
+    formData.append("extraText", extraText);
+
+    const response = await fetch("http://127.0.0.1:8000/generate", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text);
+    }
+
+    // 4️⃣ Salva o contrato gerado
+    const blob = await response.blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    const base64 = btoa(
+      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
+    );
+    localStorage.setItem("contratoGerado", base64);
+
+    // 5️⃣ Gera parecer (somente se houver arquivos)
+    await handleGenerateLegalOpinion(files);
+
+    // 6️⃣ Vai para a tela de resultado
+    router.push("/dashboard/resultado?tipo=compra-venda-vista");
+
+  } catch (error) {
+    console.error("Erro ao gerar contrato:", error);
+    alert("Erro ao gerar contrato. Veja o console para detalhes.");
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
 
   if (isProcessing) {
     return (
