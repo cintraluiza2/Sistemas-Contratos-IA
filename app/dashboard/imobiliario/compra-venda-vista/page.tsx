@@ -25,7 +25,7 @@ export default function CompraVendaVistaPage() {
     const formData = new FormData();
     files.forEach((f) => formData.append("files", f));
 
-    const res = await fetch("${process.env.NEXT_PUBLIC_BACKEND_URL}/parecer", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/parecer`, {
       method: "POST",
       body: formData,
     });
@@ -76,7 +76,7 @@ const handleProcess = async (files: File[], selectedParagraphs: string[], extraT
     formData.append("selectedParagraphs", JSON.stringify(selectedParagraphs));
     formData.append("extraText", extraText);
 
-    const response = await fetch("${process.env.NEXT_PUBLIC_BACKEND_URL}/generate", {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/generate`, {
       method: "POST",
       body: formData,
     });
