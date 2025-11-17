@@ -17,7 +17,7 @@ type ClauseOption = { id: string; label: string; text: string }
 
 interface DocumentUploadProps {
   title: string
-  onProcess: (files: File[], selectedParagraphs: string[]) => void
+  onProcess: (files: File[], selectedParagraphs: string[], extraText: string) => void
 }
 
 export function DocumentUpload({ title, onProcess }: DocumentUploadProps) {
@@ -164,7 +164,7 @@ export function DocumentUpload({ title, onProcess }: DocumentUploadProps) {
         selectedParagraphs.includes(option.id)
       );
       const paragraphsAsText: string[] = selectedOptions.map((option: ClauseOption) => option.text);
-      onProcess(files, paragraphsAsText);
+      onProcess(files, paragraphsAsText, extraText);
     } else
       alert("AAAAA")
   }
