@@ -14,100 +14,73 @@ export default function CompraVendaVistaPage() {
   const [isProcessing, setIsProcessing] = useState(false)
 
   const { data: session, status } = useSession({
-    required: true, // Magia! Se não estiver logado, redireciona para a página de login
+    required: true,
     onUnauthenticated() {
-      router.push("/login");
+      router.push("/login")
     },
-  });
+  })
 
+  const handleProcess = async (
+    files: File[],
+    selectedParagraphs: string[],
+    extraText: string
+  ) => {
 
-  const handleGenerateLegalOpinion = async (files: File[]) => {
-    const formData = new FormData();
-    files.forEach((f) => formData.append("files", f));
-
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/parecer`, {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text);
+    if (!files || files.length === 0) {
+      alert("Envie ao menos um arquivo para continuar.")
+      return
     }
 
-    // ✅ Recebe o arquivo gerado (blob)
-    const blob = await res.blob();
-    const arrayBuffer = await blob.arrayBuffer();
-    const base64 = btoa(
-      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-    );
+    const preContrato = files.find((file) => file.name.endsWith(".docx"))
 
-    // ✅ Armazena temporariamente no localStorage
-    localStorage.setItem("parecerGerado", base64);
+    setIsProcessing(true)
 
-    // Redireciona para página de resultado
-    router.push("/dashboard/resultado?tipo=parecer");
-  };
+    console.log("Enviando requisição ao Flask!")
 
+    try {
+      const formData = new FormData()
 
+      if (preContrato) {
+        formData.append("pre_contrato", preContrato)
+      }
 
-const handleProcess = async (files: File[], selectedParagraphs: string[], extraText: string ) => {
-  // ❌ 1) Agora só dá erro se NÃO houver nenhum arquivo
-  if (!files || files.length === 0) {
-    alert("Envie ao menos um arquivo para continuar.");
-    return;
+      formData.append("selectedParagraphs", JSON.stringify(selectedParagraphs))
+      formData.append("extraText", extraText)
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/generate`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      )
+
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text)
+      }
+
+      // Salva o contrato gerado
+      const blob = await response.blob()
+      const arrayBuffer = await blob.arrayBuffer()
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce(
+          (data, byte) => data + String.fromCharCode(byte),
+          ""
+        )
+      )
+      localStorage.setItem("contratoGerado", base64)
+
+      // Redireciona para a tela de resultado
+      router.push("/dashboard/resultado?tipo=compra-venda-vista")
+
+    } catch (error) {
+      console.error("Erro ao gerar contrato:", error)
+      alert("Erro ao gerar contrato. Veja o console para detalhes.")
+    } finally {
+      setIsProcessing(false)
+    }
   }
-
-  // 🔍 2) Tenta encontrar DOCX, mas não é obrigatório
-  const preContrato = files.find((file) => file.name.endsWith(".docx"));
-
-  setIsProcessing(true);
-
-  console.log("Enviando requisição ao Flask!");
-  try {
-    // 3️⃣ Monta o FormData
-    const formData = new FormData();
-
-    // Envia o DOCX só se existir
-    if (preContrato) {
-      formData.append("pre_contrato", preContrato);
-    }
-
-    formData.append("selectedParagraphs", JSON.stringify(selectedParagraphs));
-    formData.append("extraText", extraText);
-
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/generate`, {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text);
-    }
-
-    // 4️⃣ Salva o contrato gerado
-    const blob = await response.blob();
-    const arrayBuffer = await blob.arrayBuffer();
-    const base64 = btoa(
-      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), "")
-    );
-    localStorage.setItem("contratoGerado", base64);
-
-    // 5️⃣ Gera parecer (somente se houver arquivos)
-    await handleGenerateLegalOpinion(files);
-
-    // 6️⃣ Vai para a tela de resultado
-    router.push("/dashboard/resultado?tipo=compra-venda-vista");
-
-  } catch (error) {
-    console.error("Erro ao gerar contrato:", error);
-    alert("Erro ao gerar contrato. Veja o console para detalhes.");
-  } finally {
-    setIsProcessing(false);
-  }
-};
-
 
   if (isProcessing) {
     return (
@@ -117,7 +90,9 @@ const handleProcess = async (files: File[], selectedParagraphs: string[], extraT
           <div className="text-center">
             <div className="mx-auto mb-6 h-16 w-16 animate-spin rounded-full border-4 border-accent border-t-transparent" />
             <h2 className="mb-2 text-2xl font-bold">Processando Documentos</h2>
-            <p className="text-muted-foreground">Aguarde enquanto geramos seu contrato...</p>
+            <p className="text-muted-foreground">
+              Aguarde enquanto geramos seu contrato...
+            </p>
           </div>
         </main>
       </div>
@@ -137,8 +112,11 @@ const handleProcess = async (files: File[], selectedParagraphs: string[], extraT
             <ArrowLeft className="h-4 w-4" />
             Voltar
           </Button>
+
           <div className="mb-8 text-center">
-            <h1 className="mb-4 text-4xl font-bold tracking-tight">Compra e Venda à Vista</h1>
+            <h1 className="mb-4 text-4xl font-bold tracking-tight">
+              Compra e Venda à Vista
+            </h1>
             <p className="text-lg text-muted-foreground">
               Faça upload dos documentos e selecione as cláusulas necessárias
             </p>
@@ -146,7 +124,10 @@ const handleProcess = async (files: File[], selectedParagraphs: string[], extraT
         </div>
 
         <div className="mx-auto max-w-4xl">
-          <DocumentUpload title="Upload de Documentos" onProcess={handleProcess} />
+          <DocumentUpload
+            title="Upload de Documentos"
+            onProcess={handleProcess}
+          />
         </div>
       </main>
     </div>
