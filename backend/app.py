@@ -10,12 +10,9 @@ from ocr_service.ocr_core import (
     require_api_key_or_500,
     handle_analisar
 )
-import tempfile, traceback, os, json, re
+import tempfile, traceback, json, re
 from pathlib import Path
 from docxtpl import DocxTemplate
-from redis import Redis
-from rq import Queue
-from rq.job import Job
 
 
 # ---------- Configuração ----------
