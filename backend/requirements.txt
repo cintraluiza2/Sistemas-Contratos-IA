@@ -12,3 +12,4 @@ python-dotenv==1.2.1
 rq==2.6.0
 gunicorn==23.0.0
 google-generativeai==0.8.5
+google==3.0.0

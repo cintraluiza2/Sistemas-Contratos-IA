@@ -13,7 +13,8 @@ from ocr_service.ocr_core import (
 import tempfile, traceback, json, re
 from pathlib import Path
 from docxtpl import DocxTemplate
-
+import warnings
+warnings.filterwarnings("ignore", message="pkg_resources is deprecated")
 
 # ---------- Configuração ----------
 app = Flask(__name__)
