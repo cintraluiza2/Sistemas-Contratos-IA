@@ -1,3 +1,4 @@
+from ocr_service.ocr_core import clean_markdown 
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 from gerar_contrato import gerar_conteudo
@@ -9,12 +10,12 @@ from ocr_service.ocr_core import (
     require_api_key_or_500,
     handle_analisar
 )
-import tempfile, traceback
+import tempfile, traceback, os, json, re
 from pathlib import Path
 from docxtpl import DocxTemplate
-from ocr_service.ocr_core import clean_markdown  # adicione no topo
-import re
-import json
+from redis import Redis
+from rq import Queue
+from rq.job import Job
 
 
 # ---------- Configuração ----------
@@ -140,7 +141,6 @@ def gerar_parecer_juridico():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-
 
 def gerar_parecer_juridico():
     return handle_analisar()
