@@ -19,7 +19,7 @@ warnings.filterwarnings("ignore", message="pkg_resources is deprecated")
 import os
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path="/var/www/Sistemas-Contratos-IA/.env")
+load_dotenv("/var/www/Sistemas-Contratos-IA/.env")
 
 # ---------- Configuração ----------
 app = Flask(__name__)
