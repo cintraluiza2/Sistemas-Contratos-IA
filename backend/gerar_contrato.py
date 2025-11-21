@@ -10,19 +10,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 # Carrega variáveis de ambiente do arquivo .env
-BASE_DIR = Path(__file__).resolve().parent
-env_path = BASE_DIR / ".env"
-
-# Valida que o arquivo existe e está no diretório correto
-if env_path.exists() and env_path.is_file():
-    # Previne symlink attacks
-    if not env_path.is_symlink():
-        load_dotenv(env_path)
-    else:
-        print("⚠️ AVISO: .env é um symlink, ignorando por segurança")
-else:
-    # Fallback para variáveis de ambiente do sistema
-    load_dotenv()
+load_dotenv()
 
 # =====================================================================
 # 1) EXTRAÇÃO DO PRE-CONTRATO (MESMO DO GEMINI)
