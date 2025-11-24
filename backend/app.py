@@ -1,4 +1,3 @@
-from ocr_service.ocr_core import clean_markdown 
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 from gerar_contrato import gerar_conteudo
@@ -10,15 +9,13 @@ from ocr_service.ocr_core import (
     require_api_key_or_500,
     handle_analisar
 )
-import tempfile, traceback, json, re
+import tempfile, traceback
 from pathlib import Path
 from docxtpl import DocxTemplate
-import warnings
-warnings.filterwarnings("ignore", message="pkg_resources is deprecated")
+from ocr_service.ocr_core import clean_markdown  # adicione no topo
+import re
+import json
 
-from dotenv import load_dotenv
-
-load_dotenv("/var/www/Sistemas-Contratos-IA/.env")
 
 # ---------- Configuração ----------
 app = Flask(__name__)
@@ -60,7 +57,7 @@ def generate_contract():
             paragrafos = []
 
         if not uploaded_file and not extra_text.strip():
-            return jsonify({"error": "Envie um arquivo ou escreva algo no campo de texto."}), 400
+            return jsonify({"error": "Faça uplaod de um arquivo WORD (pré-contrato) ou escreva o pré-contrato na caixa de texto."}), 400
 
         if uploaded_file:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp_pre:
@@ -94,7 +91,11 @@ def generate_contract():
     except Exception as e:
         print("❌ ERRO AO GERAR CONTRATO:")
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        # mensagem amigável para o front
+        return jsonify({
+            "error": "Erro inesperado no servidor. Nossa equipe já foi notificada."
+        }), 500
+
 
 
 # ---------- GERA PARECER ----------
@@ -143,6 +144,7 @@ def gerar_parecer_juridico():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
 
 def gerar_parecer_juridico():
     return handle_analisar()
