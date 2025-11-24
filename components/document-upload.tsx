@@ -166,7 +166,7 @@ export function DocumentUpload({ title, onProcess }: DocumentUploadProps) {
       const paragraphsAsText: string[] = selectedOptions.map((option: ClauseOption) => option.text);
       onProcess(files, paragraphsAsText, extraText);
     } else
-      alert("AAAAA")
+      alert("teste")
   }
 
   const getFileIcon = (fileName: string) => {
