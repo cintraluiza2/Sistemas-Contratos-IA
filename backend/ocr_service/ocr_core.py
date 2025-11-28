@@ -3,23 +3,21 @@ import json
 import re
 import pdfplumber
 import pytesseract
+from dotenv import load_dotenv
+load_dotenv()
 import docx
 from flask import jsonify
 from crewai import Crew, Agent, Task, Process
 from langchain_openai import ChatOpenAI
 from uuid import uuid4
 from flask import request
-from dotenv import load_dotenv
-
-# Carrega variáveis de ambiente do arquivo .env
-load_dotenv()
-
 from pathlib import Path
 
 OUTPUT_DIR = Path.cwd() / "outputs"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # ---------- Utils ----------
 def extract_page_text(page, langs: str = "por+eng") -> str:
@@ -94,14 +92,16 @@ llm_analise_distribuicao = ChatOpenAI(
     model="gpt-4o",
     temperature=0.3,
     max_retries=2,
-    timeout=120  
+    timeout=120,
+    api_key=OPENAI_API_KEY 
 )
 
 llm_resumo_executivo = ChatOpenAI(
     model="gpt-4o-mini",
     temperature=0.5,
     max_retries=2,
-    timeout=60
+    timeout=60,
+    api_key=OPENAI_API_KEY
 )
 
 # Agentes
