@@ -7,13 +7,13 @@ from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import google.generativeai as genai
 from openai import OpenAI
-from dotenv import load_dotenv
 
-# Carrega variáveis de ambiente do arquivo .env
-load_dotenv()
+
+
+os.environ["GEMINI_API_KEY"] = "AIzaSyA0C8faK1blu-YISocN3jDLop10Wz0BCrM"
 
 # =====================================================================
-# 1) EXTRAÇÃO DO PRE-CONTRATO (MESMO DO GEMINI)
+# 1) EXTRAÇÃO DO PRE-CONTRATO 
 # =====================================================================
 def extract_contract_data(path):
     doc = Document(path)
@@ -173,10 +173,14 @@ Você é um assistente jurídico especializado em contratos imobiliários.
 Tarefa:
 - Reescreva o contrato completo (sem resumir nem omitir dados).
 - Mantenha a mesma estrutura e títulos do layout.
-- Use marcação Markdown para formatação (ex: **negrito**, ### títulos).
+- Não use Markdown. Preserve exatamente o texto sem adicionar "###", "*" ou qualquer marcação Markdown.
+- Escreva apenas texto puro.
 - Não altere o cabeçalho, numeração de cláusulas nem o rodapé.
 - Quando identificar listas ou quadros de dados (ex: Partes, Posse, Honorários, Comissões, Taxas, Despesas), represente-os como blocos de texto simples, com um título de seção e cada item em uma nova linha.
 - Ao final, coloque as assinaturas (nomes, CPFs, testemunhas, data e local), sem marcadores.
+- Nunca reescreva, gere ou modifique títulos do contrato. 
+- Todos os títulos devem vir EXCLUSIVAMENTE do layout-modelo.
+- Se encontrar qualquer título no pré-contrato, ignore-o completamente.
 
 🔵 REGRAS CRÍTICAS PARA PARTES (VENDEDORES, COMPRADORES)
 
@@ -296,6 +300,12 @@ LEMBRE-SE:
 - Qualquer informação sobre honorários, comissões, taxas ou despesas também deve ser formatada como um bloco de texto simples.
 - NUNCA omita informações financeiras do documento original.
 
+ATENÇÃO:
+NUNCA escreva títulos antes do Quadro Resumo.
+A única fonte válida de títulos é o layout fornecido.
+Se o pré-contrato contiver qualquer título, ignore.
+
+
 TEXTO ADICIONAL DO USUÁRIO (textarea):
 {extra_text}
 
@@ -314,11 +324,15 @@ INFORMAÇÕES EXTRAÍDAS DO PRÉ-CONTRATO:
 
     # limpa cabeçalhos duplicados
     remover = [
-        r"INSTRUMENTO\s+PARTICULAR.*",
-        r"QUADRO\s+RESUMO"
+        r"^\s*INSTRUMENTO\s+PARTICULAR.*$", 
+        r"^\s*INSTRUMENTO\s+.*COMPRA.*VENDA.*$",
+        r"^\s*DE\s+COMPRA\s+E\s+VENDA.*$",
+        r"^\s*COMPROMISSO\s+DE\s+COMPRA\s+E\s+VENDA.*$",
+        r"^\s*QUADRO\s+RESUMO.*$"
     ]
     for padrao in remover:
-        corpo = re.sub(padrao, "", corpo, flags=re.IGNORECASE)
+        corpo = re.sub(padrao, "", corpo, flags=re.IGNORECASE | re.MULTILINE)
+
 
     corpo = re.sub(r"\n{3,}", "\n\n", corpo).strip()
 
