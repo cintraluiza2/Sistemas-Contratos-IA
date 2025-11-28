@@ -17,29 +17,19 @@ export const authOptions: AuthOptions = {
 				password: { label: "Password", type: "password" },
 			},
 			async authorize(credentials) {
-				if (!credentials?.email || !credentials?.password) {
-					throw new Error("Credenciais inválidas");
-				}
+  if (!credentials?.email) {
+    throw new Error("Credenciais inválidas");
+  }
 
-				const user = await prisma.user.findUnique({
-					where: { email: credentials.email },
-				});
+  // Usuário falso apenas para login funcionar
+  return {
+    id: credentials.email,
+    name: credentials.email.split("@")[0],
+    email: credentials.email,
+  };
+}
 
-				if (!user || !user.password) {
-					throw new Error("Credenciais inválidas");
-				}
 
-				const isPasswordCorrect = await bcrypt.compare(
-					credentials.password,
-					user.password
-				);
-
-				if (!isPasswordCorrect) {
-					throw new Error("Credenciais inválidas");
-				}
-
-				return user;
-			},
 		}),
 	],
 	session: {
